@@ -46,6 +46,7 @@ def parse_args():
     parser.add_argument('--subset', default='modelnet40', type=str, help='Subset to use for training [modelnet10, modelnet40 (default)]')
     parser.add_argument('--single_view_prob_train', default=0.0, type=float, help='Probability of single-view point cloud conversion for training [default: 0]')
     parser.add_argument('--single_view_prob_test', default=0.0, type=float, help='Probability of single-view point cloud conversion for testing [default: 0]')
+    parser.add_argument('--keep_full_pc', default=False, help='Whether to keep full point clouds for each category when train prob is 1 [default: False]')
     return parser.parse_args()
 
 def test(model, loader, num_class=40):
@@ -53,7 +54,7 @@ def test(model, loader, num_class=40):
     class_acc = np.zeros((num_class,3))
     for j, data in tqdm(enumerate(loader), total=len(loader)):
         points, target = data
-        
+
         trot = None
         if args.rot == 'z':
                 trot = RotateAxisAngle(angle=torch.rand(points.shape[0])*360, axis="Z", degrees=True)
@@ -66,7 +67,7 @@ def test(model, loader, num_class=40):
             points = points.data.numpy()
             points, _ = provider.single_view_point_cloud(points, prob=args.single_view_prob_test)
             points = torch.Tensor(points)
-        
+
         target = target[:, 0]
         points = points.transpose(2, 1)
         points, target = points.cuda(), target.cuda()
@@ -85,10 +86,29 @@ def test(model, loader, num_class=40):
     return instance_acc, class_acc
 
 
+
+
 def main(args):
     def log_string(str):
         logger.info(str)
         print(str)
+
+    def keep_full_pc(points, target, visited, current_prob):
+      if current_prob == 1:
+        full_pc = []
+        full_pc_ix = []
+        for i in range(target.shape[0]):
+          if int(target[i]) not in visited:
+            log_string("Keeping full PC for class")
+            full_pc.append(points[i])
+            full_pc_ix.append(i)
+            visited.add(int(target[i]))
+          points, _ = provider.single_view_point_cloud(points, prob=args.single_view_prob_train)
+          if full_pc_ix:
+            for ix in reversed(full_pc_ix):
+              points = np.delete(points, ix, 0)
+            points = np.append(np.array(full_pc), points, 0)
+        return points
 
     '''HYPER PARAMETER'''
     os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
@@ -176,9 +196,10 @@ def main(args):
         log_string('Epoch %d (%d/%s):' % (global_epoch + 1, epoch + 1, args.epoch))
 
         scheduler.step()
+        visited = set() # for keep full pc
         for batch_id, data in tqdm(enumerate(trainDataLoader, 0), total=len(trainDataLoader), smoothing=0.9):
             points, target = data
-            
+
             trot = None
             if args.rot == 'z':
                 trot = RotateAxisAngle(angle=torch.rand(points.shape[0])*360, axis="Z", degrees=True)
@@ -189,6 +210,9 @@ def main(args):
 
             points = points.data.numpy()
             if args.single_view_prob_train > 0:
+              if args.keep_full_pc and len(visited) != 10:
+                points = keep_full_pc(points, target, visited, args.single_view_prob_train)
+              else:
                 points, _ = provider.single_view_point_cloud(points, prob=args.single_view_prob_train)
             points = provider.random_point_dropout(points)
             points[:,:, 0:3] = provider.random_scale_point_cloud(points[:,:, 0:3])
