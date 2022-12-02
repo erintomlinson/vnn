@@ -51,7 +51,11 @@ def test(model, loader, num_class=40, vote_num=1, single_view_prob_test=0.0):
                 trot = RotateAxisAngle(angle=torch.rand(points.shape[0])*360, axis="Z", degrees=True)
         elif args.rot == 'so3':
             trot = Rotate(R=random_rotations(points.shape[0]))
-        points = trot.transform_points(points)
+        if args.normal:
+            points[:,:,0:3] = trot.transform_points(points[:,:,0:3])
+            points[:,:,3:6] = trot.transform_normals(points[:,:,3:6])
+        else:
+            points = trot.transform_points(points)
 
         if single_view_prob_test > 0:
             points = points.data.numpy()

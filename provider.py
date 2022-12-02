@@ -250,7 +250,7 @@ def jitter_point_cloud(batch_data, sigma=0.01, clip=0.05):
     jittered_data += batch_data
     return jittered_data
 
-def shift_point_cloud(batch_data, shift_range=0.1):
+def shift_point_cloud(batch_data, shift_range=0.1, normal=False):
     """ Randomly shift point cloud. Shift is per point cloud.
         Input:
           BxNx3 array, original batch of point clouds
@@ -260,7 +260,12 @@ def shift_point_cloud(batch_data, shift_range=0.1):
     B, N, C = batch_data.shape
     shifts = np.random.uniform(-shift_range, shift_range, (B,3))
     for batch_index in range(B):
-        batch_data[batch_index,:,:] += shifts[batch_index,:]
+        if normal:
+            batch_data[batch_index,:,0:3] += shifts[batch_index,:]
+            # Shift normals
+            batch_data[batch_index,:,3:6] += shifts[batch_index,:]
+        else:
+            batch_data[batch_index,:,:] += shifts[batch_index,:]
     return batch_data
 
 

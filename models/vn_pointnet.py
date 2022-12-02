@@ -49,7 +49,9 @@ class PointNetEncoder(nn.Module):
         self.args = args
         self.n_knn = args.n_knn
         
-        self.conv_pos = VNLinearLeakyReLU(3, 64//3, dim=5, negative_slope=0.0)
+        # Modified in channels to be channel (instead of 3) to accomodate for normals
+        self.conv_pos = VNLinearLeakyReLU(channel, 64//3, dim=5, negative_slope=0.0)
+        
         self.conv1 = VNLinearLeakyReLU(64//3, 64//3, dim=4, negative_slope=0.0)
         self.conv2 = VNLinearLeakyReLU(64//3*2, 128//3, dim=4, negative_slope=0.0)
         
