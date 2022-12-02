@@ -46,7 +46,7 @@ def parse_args():
     parser.add_argument('--subset', default='modelnet40', type=str, help='Subset to use for training [modelnet10, modelnet40 (default)]')
     parser.add_argument('--single_view_prob_train', default=0.0, type=float, help='Probability of single-view point cloud conversion for training [default: 0]')
     parser.add_argument('--single_view_prob_test', default=0.0, type=float, help='Probability of single-view point cloud conversion for testing [default: 0]')
-    parser.add_argument('--keep_full_pc', default=False, help='Whether to keep full point clouds for each category when train prob is 1 [default: False]')
+    parser.add_argument('--keep_full_pc', action='store_true', default=False, help='Whether to keep full point clouds for each category when train prob is 1 [default: False]')
     return parser.parse_args()
 
 def test(model, loader, num_class=40):
