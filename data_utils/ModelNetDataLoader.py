@@ -37,7 +37,7 @@ def farthest_point_sample(point, npoint):
     return point
 
 class ModelNetDataLoader(Dataset):
-    def __init__(self, root,  npoint=1024, split='train', uniform=False, normal_channel=True, cache_size=15000, subset='modelnet40'):
+    def __init__(self, root,  npoint=1024, split='train', uniform=False, normal_channel=True, cache_size=15000, subset='modelnet40', class_choice='airplane'):
         self.root = root
         self.npoints = npoint
         self.uniform = uniform
@@ -47,17 +47,18 @@ class ModelNetDataLoader(Dataset):
         self.classes = dict(zip(self.cat, range(len(self.cat))))
         self.class_names = {v: k for k, v in self.classes.items()}
         self.normal_channel = normal_channel
+        self.class_choice = class_choice
 
         shape_ids = {}
-        shape_ids['train'] = [line.rstrip() for line in open(os.path.join(self.root, f'{subset}_train.txt'))]
-        shape_ids['test'] = [line.rstrip() for line in open(os.path.join(self.root, f'{subset}_test.txt'))]
+        shape_ids['train'] = [line.rstrip() for line in open(os.path.join(self.root, f'{subset}_train.txt')) if self.class_choice in line]
+        shape_ids['test'] = [line.rstrip() for line in open(os.path.join(self.root, f'{subset}_test.txt')) if self.class_choice in line]
 
         assert (split == 'train' or split == 'test')
         shape_names = ['_'.join(x.split('_')[0:-1]) for x in shape_ids[split]]
         # list of (shape_name, shape_txt_file_path) tuple
         self.datapath = [(shape_names[i], os.path.join(self.root, shape_names[i], shape_ids[split][i]) + '.txt') for i
                          in range(len(shape_ids[split]))]
-        print('The size of %s data is %d'%(split,len(self.datapath)))
+        print('The size of %s %s data is %d'%(self.class_choice, split, len(self.datapath)))
 
         self.cache_size = cache_size  # how many data points to cache in memory
         self.cache = {}  # from index to (point_set, cls) tuple
@@ -90,8 +91,6 @@ class ModelNetDataLoader(Dataset):
 
     def __getitem__(self, index):
         return self._get_item(index)
-
-
 
 
 if __name__ == '__main__':

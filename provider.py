@@ -3,7 +3,39 @@ import open3d as o3d
 import torch
 from data_utils.ModelNetDataLoader import pc_normalize
 
-def single_view_point_cloud(batch_data, prob=0.5):
+EPS = 1e-10
+
+def batched_trace(mat):
+    return mat.diagonal(offset=0, dim1=-1, dim2=-2).sum(-1)
+
+def axis_angle_distance(R1, R2):
+    M = torch.matmul(R1, R2.transpose(1, 2))
+    dist = torch.acos(torch.clamp((batched_trace(M) - 1) / 2., -1 + EPS, 1 - EPS))
+    dist = (180 / np.pi) * dist
+    return dist
+
+def to_rotation_mat(rot, which_rot='svd'):
+    if which_rot == 'svd':
+        u, s, v = torch.svd(rot)
+        M_TM_pow_minus_half = torch.matmul(v / (s + EPS).unsqueeze(1), v.transpose(2, 1))
+        rot_mat = torch.matmul(rot, M_TM_pow_minus_half)
+        # If gradient trick is rqeuired:
+        #rot_mat = (rot_mat - rot).detach() + rot
+    else:
+        # Gram–Schmidt
+        rot_vec0 = rot[:,0,:]
+        rot_vec1 = rot[:,1,:] - rot_vec0 * torch.sum(rot_vec0 *  rot[:,1,:], dim=-1, keepdim=True) \
+                           / (torch.sum(rot_vec0 **2, dim=-1, keepdim=True) + EPS)
+
+        rot_vec2 = rot[:,2,:] - rot_vec0 * torch.sum(rot_vec0 *  rot[:,2,:], dim=-1, keepdim=True) \
+                           / (torch.sum(rot_vec0 **2, dim=-1, keepdim=True) + EPS)
+        rot_vec2 = rot_vec2 - rot_vec1 * torch.sum(rot_vec1 * rot[:, 2, :], dim=-1, keepdim=True) \
+                           / (torch.sum(rot_vec1 **2, dim=-1, keepdim=True) + EPS)
+        rot_mat = torch.stack([rot_vec0, rot_vec1, rot_vec2], dim=1)
+        rot_mat = rot_mat / torch.sqrt((torch.sum(rot_mat ** 2, dim=2, keepdim=True) + EPS))
+    return rot_mat
+
+def single_view_point_cloud(batch_data, prob=0.5, renormalize=False):
     """ Randomly convert point cloud to single view to augument the dataset
         Uses Open3D "Hidden Point Removal" algorithm (http://www.open3d.org/docs/release/tutorial/geometry/pointcloud.html#Hidden-point-removal) 
         Conversion is per shape with camera placed along +z axis, works with and without normals
@@ -29,7 +61,8 @@ def single_view_point_cloud(batch_data, prob=0.5):
         else:
             points = np.asarray(pcd.select_by_index(pt_map).points)
         # Renormalize single-view point cloud
-        points = pc_normalize(points)
+        if renormalize:
+            points = pc_normalize(points)
         # Concatenate matching normals if they exist
         points = np.concatenate([points, batch_data[k, pt_map, 3:6]], axis=-1)
         # Place points in processed data array, padding with the first point
