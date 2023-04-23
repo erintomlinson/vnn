@@ -51,10 +51,10 @@ airplane_0676 d
 airplane_0677 l
 airplane_0678 d
 airplane_0679 x
-airplane_0680 l
+airplane_0680 x
 airplane_0681 d
 airplane_0682 d
-airplane_0683 l
+airplane_0683 x
 airplane_0684 d
 airplane_0685 l
 airplane_0686 x
