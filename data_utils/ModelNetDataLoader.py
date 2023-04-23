@@ -37,7 +37,7 @@ def farthest_point_sample(point, npoint):
     return point
 
 class ModelNetDataLoader(Dataset):
-    def __init__(self, root,  npoint=1024, split='train', uniform=False, normal_channel=True, cache_size=15000, subset='modelnet40', class_choice='airplane'):
+    def __init__(self, root,  npoint=1024, split='train', uniform=False, normal_channel=True, cache_size=15000, subset='modelnet40', class_choice='airplane', align=True):
         self.root = root
         self.npoints = npoint
         self.uniform = uniform
@@ -48,17 +48,38 @@ class ModelNetDataLoader(Dataset):
         self.class_names = {v: k for k, v in self.classes.items()}
         self.normal_channel = normal_channel
         self.class_choice = class_choice
+        self.align = align
 
-        shape_ids = {}
-        shape_ids['train'] = [line.rstrip() for line in open(os.path.join(self.root, f'{subset}_train.txt')) if self.class_choice in line]
-        shape_ids['test'] = [line.rstrip() for line in open(os.path.join(self.root, f'{subset}_test.txt')) if self.class_choice in line]
+        if self.align:
+            shape_ids = {}
+            shape_ids['train'] = [line.rstrip().split() for line in open(os.path.join(self.root, f'{subset}_train_pose.txt')) if self.class_choice in line]
+            shape_ids['test'] = [line.rstrip().split() for line in open(os.path.join(self.root, f'{subset}_test_pose.txt')) if self.class_choice in line]
 
-        assert (split == 'train' or split == 'test')
-        shape_names = ['_'.join(x.split('_')[0:-1]) for x in shape_ids[split]]
-        # list of (shape_name, shape_txt_file_path) tuple
-        self.datapath = [(shape_names[i], os.path.join(self.root, shape_names[i], shape_ids[split][i]) + '.txt') for i
-                         in range(len(shape_ids[split]))]
-        print('The size of %s %s data is %d'%(self.class_choice, split, len(self.datapath)))
+            assert (split == 'train' or split == 'test')
+            shape_poses = [x[1] for x in shape_ids[split]]
+            shape_ids[split] = [x[0] for x in shape_ids[split]]
+            shape_names = ['_'.join(x.split('_')[0:-1]) for x in shape_ids[split]]
+            # list of (shape_name, shape_txt_file_path, pose) tuple
+            self.datapath = [(shape_names[i], os.path.join(self.root, shape_names[i], shape_ids[split][i]) + '.txt', shape_poses[i]) for i
+                             in range(len(shape_ids[split])) if shape_poses[i] != 'x']
+            print('The size of aligned %s %s data is %d'%(self.class_choice, split, len(self.datapath)))
+
+            self.trot = {
+                'l': RotateAxisAngle(angle=90, axis='Y', degrees=True),
+                'd': RotateAxisAngle(angle=180, axis='Y', degrees=True),
+                'r': RotateAxisAngle(angle=-90, axis='Y', degrees=True)}
+
+        else:
+            shape_ids = {}
+            shape_ids['train'] = [line.rstrip() for line in open(os.path.join(self.root, f'{subset}_train.txt')) if self.class_choice in line]
+            shape_ids['test'] = [line.rstrip() for line in open(os.path.join(self.root, f'{subset}_test.txt')) if self.class_choice in line]
+
+            assert (split == 'train' or split == 'test')
+            shape_names = ['_'.join(x.split('_')[0:-1]) for x in shape_ids[split]]
+            # list of (shape_name, shape_txt_file_path) tuple
+            self.datapath = [(shape_names[i], os.path.join(self.root, shape_names[i], shape_ids[split][i]) + '.txt') for i
+                             in range(len(shape_ids[split]))]
+            print('The size of %s %s data is %d'%(self.class_choice, split, len(self.datapath)))
 
         self.cache_size = cache_size  # how many data points to cache in memory
         self.cache = {}  # from index to (point_set, cls) tuple
@@ -80,6 +101,12 @@ class ModelNetDataLoader(Dataset):
                 point_set = point_set[0:self.npoints,:]
 
             point_set[:, 0:3] = pc_normalize(point_set[:, 0:3])
+
+            if self.align:
+                point_set = torch.tensor(point_set)
+                point_set[:, 0:3] = self.trot[fn[2]].transform_points(point_set[:, 0:3])
+                point_set[:, 3:6] = self.trot[fn[2]].transform_points(point_set[:, 3:6])
+                point_set = point_set.numpy()
 
             if not self.normal_channel:
                 point_set = point_set[:, 0:3]

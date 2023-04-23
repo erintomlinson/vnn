@@ -137,8 +137,8 @@ def main(args):
     log_string(f'Load dataset {args.subset}...')
     DATA_PATH = 'data/modelnet40_normal_resampled/'
 
-    TRAIN_DATASET = ModelNetDataLoader(root=DATA_PATH, npoint=args.num_point, split='train', normal_channel=args.normal, subset=args.subset, class_choice=args.class_choice)
-    TEST_DATASET = ModelNetDataLoader(root=DATA_PATH, npoint=args.num_point, split='test', normal_channel=args.normal, subset=args.subset, class_choice=args.class_choice)
+    TRAIN_DATASET = ModelNetDataLoader(root=DATA_PATH, npoint=args.num_point, split='train', normal_channel=args.normal, subset=args.subset, class_choice=args.class_choice, align=True)
+    TEST_DATASET = ModelNetDataLoader(root=DATA_PATH, npoint=args.num_point, split='test', normal_channel=args.normal, subset=args.subset, class_choice=args.class_choice, align=True)
     trainDataLoader = torch.utils.data.DataLoader(TRAIN_DATASET, batch_size=args.batch_size, shuffle=True, num_workers=4)
     testDataLoader = torch.utils.data.DataLoader(TEST_DATASET, batch_size=args.batch_size, shuffle=False, num_workers=4)
 
@@ -233,8 +233,6 @@ def main(args):
                 correct = (axis_angle_distances <= args.acc_threshold).cpu().sum()
                 mean_correct.append(correct.item()/float(points.size()[0]))
 
-            log_string(loss)
-            log_string(axis_angle_distances)
             global_step += 1
 
         mean_axis_angle_distance = torch.mean(torch.tensor(mean_axis_angle_distances))
