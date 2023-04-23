@@ -67,6 +67,7 @@ class ModelNetDataLoader(Dataset):
             print('The size of aligned %s %s data is %d'%(self.class_choice, split, len(self.datapath)))
 
             self.trot = {
+                'u': RotateAxisAngle(angle=0, axis='Y', degrees=True), # do nothing, this is the reference pose
                 'l': RotateAxisAngle(angle=90, axis='Y', degrees=True),
                 'd': RotateAxisAngle(angle=180, axis='Y', degrees=True),
                 'r': RotateAxisAngle(angle=-90, axis='Y', degrees=True)}
