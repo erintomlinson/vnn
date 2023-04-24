@@ -51,8 +51,8 @@ def parse_args():
     parser.add_argument('--which_rot_metric', type=str, default='cosine', help='loss selection for rotation loss')
     parser.add_argument('--which_ortho_metric', type=str, default='MSE', help='loss selection for orthogonal loss')
 #    parser.add_argument('--which_strict_rot', type=str, default='None', choices=['svd', 'gram_schmidt', 'None'], help='Define rotation tansform, [default: None]')
-    parser.add_argument('--single_view_prob_train', default=0.0, type=float, help='Probability of single-view point cloud conversion for training [default: 0]')
-    parser.add_argument('--single_view_prob_test', default=0.0, type=float, help='Probability of single-view point cloud conversion for testing [default: 0]')
+    parser.add_argument('--partial_prob_train', default=0.0, type=float, help='Probability of single-view point cloud conversion for training [default: 0]')
+    parser.add_argument('--partial_prob_test', default=0.0, type=float, help='Probability of single-view point cloud conversion for testing [default: 0]')
     parser.add_argument('--renormalize', action='store_true', help='recenter and renormalize after partialization')
     parser.add_argument('--random_shift', action='store_true', help='apply random shifts to point cloud during training')
     return parser.parse_args()
@@ -77,9 +77,9 @@ def test(model, loader, acc_threshold):
                 points = trot.transform_points(points)
                 target_rot = trot.get_matrix()[:, :3, :3]
                 
-        if args.single_view_prob_test > 0:
+        if args.partial_prob_test > 0:
             points = points.data.numpy()
-            points, _ = provider.single_view_point_cloud(points, prob=args.single_view_prob_test, renormalize=args.renormalize)
+            points, _ = provider.partialize_point_cloud(points, prob=args.partial_prob_test, renormalize=args.renormalize)
             points = torch.Tensor(points)
 
         points = points.transpose(2, 1)
@@ -206,8 +206,8 @@ def main(args):
                 target_rot = trot.get_matrix()[:, :3, :3]
             
             points = points.data.numpy()
-            if args.single_view_prob_train > 0:
-                points, _ = provider.single_view_point_cloud(points, prob=args.single_view_prob_train, renormalize=args.renormalize)
+            if args.partial_prob_train > 0:
+                points, _ = provider.partialize_point_cloud(points, prob=args.partial_prob_train, renormalize=args.renormalize)
             points = provider.random_point_dropout(points)
             points[:,:, 0:3] = provider.random_scale_point_cloud(points[:,:,0:3])
             if args.random_shift:
