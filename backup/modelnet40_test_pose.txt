@@ -16,7 +16,7 @@ airplane_0641 d
 airplane_0642 x
 airplane_0643 d
 airplane_0644 d
-airplane_0645 l
+airplane_0645 x
 airplane_0646 d
 airplane_0647 u
 airplane_0648 d
@@ -41,7 +41,7 @@ airplane_0666 l
 airplane_0667 d
 airplane_0668 d
 airplane_0669 x
-airplane_0670 l
+airplane_0670 x
 airplane_0671 l
 airplane_0672 d
 airplane_0673 d
