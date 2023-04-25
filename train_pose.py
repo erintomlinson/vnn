@@ -207,8 +207,13 @@ def main(args):
             
             points = points.data.numpy()
             if args.partial_prob_train > 0:
-                points, _ = provider.partialize_point_cloud(points, prob=args.partial_prob_train, renormalize=args.renormalize)
-            points = provider.random_point_dropout(points)
+                points, info = provider.partialize_point_cloud(points, prob=args.partial_prob_train, renormalize=args.renormalize)
+                max_dropout_ratio = 0.875*info['fraction_visible']
+            else:
+                max_dropout_ratio = 0.875
+
+            points = provider.random_point_dropout(points, max_dropout_ratio=max_dropout_ratio)
+
             points[:,:, 0:3] = provider.random_scale_point_cloud(points[:,:,0:3])
             if args.random_shift:
                 if args.normal:

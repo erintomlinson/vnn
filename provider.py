@@ -64,8 +64,8 @@ def partialize_point_cloud(batch_data, prob=0.5, camera_direction='random', reno
             raise ValueError('number of camera directions must equal 1 or batch_size')
     camera_direction /= np.linalg.norm(camera_direction, axis=1, keepdims=True)
     
-
     partialized = np.random.uniform(size=batch_size) < prob
+    fraction_visible = np.ones(batch_size)
     for k in np.argwhere(partialized).ravel():
 
         # Apply HPR operator from specified direction
@@ -78,6 +78,9 @@ def partialize_point_cloud(batch_data, prob=0.5, camera_direction='random', reno
         else:
             points = np.asarray(pcd.select_by_index(pt_map).points)
 
+        # Compute fraction of points that are visible
+        fraction_visible[k] = len(points)/len(batch_data[k])
+
         if renormalize:
             points = pc_normalize(points)
 
@@ -88,44 +91,44 @@ def partialize_point_cloud(batch_data, prob=0.5, camera_direction='random', reno
         processed_data[k, :len(pt_map), :] = points
         processed_data[k, len(pt_map):, :] = points[0]
 
-    info = dict(camera_direction=camera_direction, partialized=partialized)
+    info = dict(camera_direction=camera_direction, partialized=partialized, fraction_visible=fraction_visible)
     return processed_data, info
 
-def single_view_point_cloud(batch_data, prob=0.5, renormalize=False):
-    """ Randomly convert point cloud to single view to augument the dataset
-        Uses Open3D "Hidden Point Removal" algorithm (http://www.open3d.org/docs/release/tutorial/geometry/pointcloud.html#Hidden-point-removal) 
-        Conversion is per shape with camera placed along +z axis, works with and without normals
-        Input:
-          batch_data: BxNx3 (or BxNx6) array, original batch of point clouds (and optional normals)
-          prob: per-shape probability of single-view point cloud conversion
-        Return:
-          processed_data: BxNx3 (or BxNx6) array, processed batch of point clouds (and optional normals)
-          single_view: length B array, boolean flag for which point clouds were converted to single view
-    """
-    processed_data = batch_data.copy()
-    single_view = np.random.uniform(size=batch_data.shape[0]) < prob
-    for k in np.argwhere(single_view).ravel():
-        # Convert point cloud to single view
-        pcd = o3d.geometry.PointCloud()
-        pcd.points = o3d.utility.Vector3dVector(batch_data[k, :, 0:3])
-        diameter = np.linalg.norm(np.asarray(pcd.get_max_bound()) - np.asarray(pcd.get_min_bound()))
-        camera = [0, 0, diameter]
-        radius = diameter * 100
-        _, pt_map = pcd.hidden_point_removal(camera, radius)
-        if o3d.__version__ == '0.9.0.0':
-            points = np.asarray(pcd.select_down_sample(pt_map).points)
-        else:
-            points = np.asarray(pcd.select_by_index(pt_map).points)
-        # Renormalize single-view point cloud
-        if renormalize:
-            points = pc_normalize(points)
-        # Concatenate matching normals if they exist
-        points = np.concatenate([points, batch_data[k, pt_map, 3:6]], axis=-1)
-        # Place points in processed data array, padding with the first point
-        n = len(pt_map)
-        processed_data[k, :n, :] = points
-        processed_data[k, n:, :] = points[0]
-    return processed_data, single_view
+#def single_view_point_cloud(batch_data, prob=0.5, renormalize=False):
+#    """ Randomly convert point cloud to single view to augument the dataset
+#        Uses Open3D "Hidden Point Removal" algorithm (http://www.open3d.org/docs/release/tutorial/geometry/pointcloud.html#Hidden-point-removal) 
+#        Conversion is per shape with camera placed along +z axis, works with and without normals
+#        Input:
+#          batch_data: BxNx3 (or BxNx6) array, original batch of point clouds (and optional normals)
+#          prob: per-shape probability of single-view point cloud conversion
+#        Return:
+#          processed_data: BxNx3 (or BxNx6) array, processed batch of point clouds (and optional normals)
+#          single_view: length B array, boolean flag for which point clouds were converted to single view
+#    """
+#    processed_data = batch_data.copy()
+#    single_view = np.random.uniform(size=batch_data.shape[0]) < prob
+#    for k in np.argwhere(single_view).ravel():
+#        # Convert point cloud to single view
+#        pcd = o3d.geometry.PointCloud()
+#        pcd.points = o3d.utility.Vector3dVector(batch_data[k, :, 0:3])
+#        diameter = np.linalg.norm(np.asarray(pcd.get_max_bound()) - np.asarray(pcd.get_min_bound()))
+#        camera = [0, 0, diameter]
+#        radius = diameter * 100
+#        _, pt_map = pcd.hidden_point_removal(camera, radius)
+#        if o3d.__version__ == '0.9.0.0':
+#            points = np.asarray(pcd.select_down_sample(pt_map).points)
+#        else:
+#            points = np.asarray(pcd.select_by_index(pt_map).points)
+#        # Renormalize single-view point cloud
+#        if renormalize:
+#            points = pc_normalize(points)
+#        # Concatenate matching normals if they exist
+#        points = np.concatenate([points, batch_data[k, pt_map, 3:6]], axis=-1)
+#        # Place points in processed data array, padding with the first point
+#        n = len(pt_map)
+#        processed_data[k, :n, :] = points
+#        processed_data[k, n:, :] = points[0]
+#    return processed_data, single_view
 
 
 def normalize_data(batch_data):
@@ -373,8 +376,10 @@ def random_scale_point_cloud(batch_data, scale_low=0.8, scale_high=1.25):
 
 def random_point_dropout(batch_pc, max_dropout_ratio=0.875):
     ''' batch_pc: BxNx3 '''
+    if isinstance(max_dropout_ratio, float):
+        max_dropout_ratio = max_dropout_ratio * np.ones(batch_pc.shape[0])
     for b in range(batch_pc.shape[0]):
-        dropout_ratio =  np.random.random()*max_dropout_ratio # 0~0.875
+        dropout_ratio =  np.random.random()*max_dropout_ratio[b] # 0~0.875
         drop_idx = np.where(np.random.random((batch_pc.shape[1]))<=dropout_ratio)[0]
         if len(drop_idx)>0:
             batch_pc[b,drop_idx,:] = batch_pc[b,0,:] # set to the first point
